@@ -1,0 +1,1372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PrintFlow — Interactive Presentation Deck</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome 6 Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts: Ubuntu (for UI) and JetBrains Mono (for stats) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Ubuntu:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Brand colors from version_7 index.css */
+            --primary: #0d6efd;
+            --primary-2: #2d6efd;
+            --accent: #0bbcd6;
+            
+            --text-main: #111827;
+            --text-soft: #4b5563;
+            --text-faint: #6b7280;
+            
+            --bg-light: #eef5ff;
+            --glass: rgba(255, 255, 255, 0.45);
+            --glass-border: rgba(13, 110, 253, 0.12);
+            --shadow-soft: 0 16px 40px rgba(13, 110, 253, 0.06);
+            --shadow-strong: 0 24px 60px rgba(13, 110, 253, 0.12);
+            
+            --bleed-color: #dc3545;
+            --safe-color: #198754;
+            --gamut-color: #fd7e14;
+        }
+
+        body {
+            font-family: "Ubuntu", sans-serif;
+            background-color: var(--bg-light);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .mono {
+            font-family: "JetBrains Mono", monospace;
+        }
+
+        /* Presentation Frame Layout */
+        .header-bar {
+            background-color: #ffffff;
+            border-bottom: 1px solid rgba(13, 110, 253, 0.08);
+            padding: 14px 0;
+        }
+
+        .navbar-brand {
+            font-weight: 700;
+            color: var(--primary) !important;
+            letter-spacing: -0.5px;
+        }
+
+        .brand-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--accent);
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: 2px;
+        }
+
+        .presentation-viewport {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* 16:9 Presentation slide containers */
+        .slide-card {
+            width: 100%;
+            max-width: 1100px;
+            height: 600px;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: var(--shadow-strong);
+            position: relative;
+        }
+
+        .slide-card.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        .slide-dark {
+            background-color: #0f172a;
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .slide-light {
+            background-color: #ffffff;
+            color: var(--text-main);
+            border: 1px solid var(--glass-border);
+        }
+
+        .slide-content {
+            padding: 40px;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .slide-header {
+            border-bottom: 1px solid rgba(13, 110, 253, 0.08);
+            padding-bottom: 16px;
+            margin-bottom: 20px;
+        }
+
+        .slide-dark .slide-header {
+            border-bottom-color: rgba(255, 255, 255, 0.08);
+        }
+
+        .slide-body {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            gap: 40px;
+            height: 0; /* flex container overflow fix */
+        }
+
+        .slide-left {
+            flex: 1;
+            max-height: 100%;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        .slide-right {
+            flex: 1.1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            position: relative;
+        }
+
+        /* Controls Panel */
+        .controls-hud {
+            background-color: #ffffff;
+            border-top: 1px solid rgba(13, 110, 253, 0.08);
+            padding: 14px 0;
+            z-index: 100;
+        }
+
+        /* Progress Bar */
+        .progress-bar-container {
+            width: 100%;
+            height: 4px;
+            background-color: rgba(13, 110, 253, 0.08);
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background-color: var(--primary);
+            width: 12.5%;
+            transition: width 0.3s ease;
+        }
+
+        /* 2D Canvas Simulator Styles */
+        .canvas-container {
+            position: relative;
+            background: #cbd5e1;
+            border-radius: 12px;
+            padding: 14px;
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.08);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+            max-height: 420px;
+        }
+
+        .sim-canvas {
+            position: relative;
+            width: 270px;
+            height: 380px;
+            background: #ffffff;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        /* Bleed Guide Styles */
+        .bleed-border {
+            position: absolute;
+            inset: 0;
+            border: 3px solid rgba(220, 53, 69, 0.4);
+            pointer-events: none;
+            display: none;
+            z-index: 100;
+        }
+        .bleed-border::after {
+            content: "GUILLOTINE BLEED LINE (3mm)";
+            position: absolute;
+            top: 2px;
+            left: 5px;
+            color: var(--bleed-color);
+            font-size: 7px;
+            font-weight: bold;
+        }
+
+        .safe-border {
+            position: absolute;
+            inset: 8px;
+            border: 1px dashed rgba(25, 135, 84, 0.4);
+            pointer-events: none;
+            display: none;
+            z-index: 99;
+        }
+
+        .grid-overlay {
+            position: absolute;
+            inset: 0;
+            background-image: radial-gradient(circle, #6b7280 1px, transparent 1px);
+            background-size: 20px 20px;
+            opacity: 0.15;
+            pointer-events: none;
+            display: none;
+            z-index: 90;
+        }
+
+        /* Elements inside Simulated Canvas */
+        .sim-el {
+            position: absolute;
+            border: 1px solid transparent;
+            cursor: pointer;
+            user-select: none;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+            box-sizing: border-box;
+        }
+
+        .sim-el:hover {
+            border-color: rgba(13, 110, 253, 0.4);
+        }
+
+        .sim-el.selected {
+            border-color: var(--primary) !important;
+            box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.2);
+            z-index: 150;
+        }
+
+        .sim-el.error-bleed {
+            border-color: var(--bleed-color) !important;
+            animation: pulse-border 1.5s infinite alternate;
+        }
+
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.2); }
+            100% { box-shadow: 0 0 0 5px rgba(220, 53, 69, 0.5); }
+        }
+
+        .lock-badge {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            background: #dc3545;
+            color: white;
+            font-size: 8px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        .draft-watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 46px;
+            font-weight: 900;
+            color: rgba(107, 114, 128, 0.08);
+            text-transform: uppercase;
+            letter-spacing: 10px;
+            pointer-events: none;
+            z-index: 5;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        /* 3D Extrusion View */
+        .scene-3d {
+            width: 100%;
+            height: 100%;
+            max-height: 420px;
+            perspective: 1200px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #0f172a;
+            border-radius: 12px;
+            box-shadow: inset 0 4px 20px rgba(0,0,0,0.5);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .canvas-3d {
+            position: relative;
+            width: 180px;
+            height: 250px;
+            transform-style: preserve-3d;
+            transform: rotateX(55deg) rotateY(0deg) rotateZ(-35deg);
+            transition: transform 0.2s ease-out;
+        }
+
+        .layer-3d {
+            position: absolute;
+            inset: 0;
+            border-radius: 6px;
+            transform-style: preserve-3d;
+            transition: transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.5s ease;
+            box-shadow: 0 0 1px rgba(255, 255, 255, 0.1);
+        }
+
+        .layer-paper {
+            background: rgba(255, 255, 255, 0.95);
+            border: 2px solid #ffffff;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+        }
+
+        .layer-shapes {
+            background: rgba(253, 126, 20, 0.2);
+            border: 2px solid rgba(253, 126, 20, 0.7);
+        }
+
+        .layer-images {
+            background: rgba(111, 66, 193, 0.25);
+            border: 2px solid rgba(111, 66, 193, 0.8);
+        }
+
+        .layer-text {
+            background: rgba(13, 110, 253, 0.25);
+            border: 2px solid rgba(13, 110, 253, 0.8);
+        }
+
+        .layer-barcode {
+            background: rgba(25, 135, 84, 0.3);
+            border: 2px solid rgba(25, 135, 84, 0.8);
+        }
+
+        .layer-watermark {
+            background: rgba(220, 53, 69, 0.15);
+            border: 2px dashed rgba(220, 53, 69, 0.7);
+        }
+
+        .layer-3d-label {
+            position: absolute;
+            left: 105%;
+            top: 50%;
+            transform: translateY(-50%) rotateY(0deg);
+            white-space: nowrap;
+            font-size: 10px;
+            font-weight: bold;
+            color: #94a3b8;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 2px 8px;
+            border-radius: 4px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .canvas-3d.extruded .layer-3d-label {
+            opacity: 1;
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+
+        /* Pre-flight console styling */
+        .console-log {
+            background: #0f172a;
+            color: #38bdf8;
+            font-family: "JetBrains Mono", monospace;
+            font-size: 12px;
+            border-radius: 8px;
+            padding: 12px;
+            height: 150px;
+            overflow-y: auto;
+            width: 100%;
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+        }
+
+        .console-line {
+            margin-bottom: 4px;
+            line-height: 1.3;
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+        }
+
+        .console-success { color: #4ade80; }
+        .console-warning { color: #facc15; }
+        .console-error { color: #f87171; }
+        .console-info { color: #38bdf8; }
+
+        .feature-icon-box {
+            width: 42px;
+            height: 42px;
+            border-radius: 10px;
+            background: rgba(13, 110, 253, 0.1);
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            margin-bottom: 12px;
+        }
+
+        .glass-card {
+            background: var(--glass);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: var(--shadow-soft);
+        }
+
+        /* Mobile scaling warning overlay */
+        @media (max-width: 991px) {
+            .slide-card {
+                height: auto;
+                max-height: none;
+            }
+            .slide-body {
+                flex-direction: column;
+                height: auto;
+            }
+            .slide-right {
+                min-height: 400px;
+                width: 100%;
+            }
+            body {
+                overflow: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header navigation bar -->
+    <header class="header-bar">
+        <div class="container d-flex justify-content-between align-items-center">
+            <a class="navbar-brand d-flex align-items-center" href="../index.html">
+                <i class="fa-solid fa-print me-2 text-primary"></i>
+                <span>PrintFlow</span>
+                <span class="brand-dot"></span>
+            </a>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-outline-primary btn-sm rounded-pill px-3" id="btnFullscreenHeader" onclick="toggleFullscreen()">
+                    <i class="fa-solid fa-expand me-1"></i> Slide Deck Mode
+                </button>
+                <a class="btn btn-outline-secondary btn-sm rounded-pill px-3" href="../index.html">
+                    <i class="fa-solid fa-arrow-left me-1"></i> Back to Landing Page
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Slide View Area -->
+    <main class="presentation-viewport">
+        
+        <!-- Slide 1: Cover/Overview (White Theme) -->
+        <div class="slide-card slide-light active" id="slide1">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill small">
+                        Overview
+                    </span>
+                </div>
+                <div class="slide-body">
+                    <div class="slide-left d-flex flex-column justify-content-center">
+                        <h1 class="display-5 fw-bold text-dark mb-3">PrintFlow Layout Composer</h1>
+                        <h3 class="h4 text-primary mb-4">Precision Design-to-Print Composition</h3>
+                        <p class="lead text-muted">
+                            A local-first composition tool built to bridge the gap between digital web design and physical printing press accuracy. 
+                        </p>
+                        <p class="text-muted small">
+                            Designed to avoid clipped margins, blurred assets, and color drift on physical paper.
+                        </p>
+                    </div>
+                    <div class="slide-right">
+                        <div class="glass-card p-4 text-center border-primary position-relative overflow-hidden w-100 max-w-sm">
+                            <div class="p-3 bg-white rounded border shadow-sm mx-auto position-relative" style="max-width: 200px; aspect-ratio: 1 / 1.41;">
+                                <div class="border border-danger border-2 h-100 d-flex flex-column justify-content-between p-2" style="border-style: solid; font-size: 6px;">
+                                    <div class="d-flex justify-content-between align-items-start border-bottom pb-1">
+                                        <div>
+                                            <div class="fw-bold text-primary text-start">PRINTFLOW CORP</div>
+                                            <div class="text-muted">123 Press Lane</div>
+                                        </div>
+                                        <div class="bg-primary text-white rounded px-1" style="font-weight: bold;">LOGO</div>
+                                    </div>
+                                    <div class="my-4 text-start">
+                                        <div class="bg-light h-1 w-75 mb-1"></div>
+                                        <div class="bg-light h-1 w-100"></div>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-end pt-2 border-top">
+                                        <div class="text-danger fw-bold" style="font-size: 8px;">DRAFT</div>
+                                        <div class="mono text-muted" style="font-size: 5px;">*SEQ-9048*</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="mt-2 text-muted small mb-0">
+                                Exact print-scale templates.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between text-muted small pt-2 border-top">
+                    <span>Press Right Arrow key or click Next to proceed</span>
+                    <span class="mono">Slide 1 of 8</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 2: The Problem (Light) -->
+        <div class="slide-card slide-light" id="slide2">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <h2 class="h3 fw-bold text-dark m-0">The Web-to-Print Gap</h2>
+                </div>
+                <div class="slide-body">
+                    <div class="slide-left">
+                        <p class="fw-bold fs-5 text-dark mb-3">
+                            Standard design tools build layouts in digital pixels, not physical units.
+                        </p>
+                        <p class="text-muted mb-4">
+                            This disconnect leads to costly manufacturing defects at the print shop:
+                        </p>
+                        <ul class="d-flex flex-column gap-3 text-muted" style="list-style: none; padding-left: 0;">
+                            <li>
+                                <i class="fa-solid fa-triangle-exclamation text-danger me-2"></i>
+                                <strong>Clipping Risks:</strong> Important text or logo borders get sliced off by mechanical paper guillotines because layout offsets weren't validated.
+                            </li>
+                            <li>
+                                <i class="fa-solid fa-triangle-exclamation text-danger me-2"></i>
+                                <strong>Color Drift:</strong> Neon screen colors (RGB) print as dark, muddy shades due to offset printer ink boundaries.
+                            </li>
+                            <li>
+                                <i class="fa-solid fa-triangle-exclamation text-danger me-2"></i>
+                                <strong>Fuzzy Images:</strong> Low-resolution logo and barcode files look pixelated and blurry when scaled on paper.
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="slide-right">
+                        <div class="glass-card p-3 border-danger w-100 max-w-sm text-center">
+                            <span class="badge bg-danger mb-2">Trim-cut Error Risk</span>
+                            <div class="bg-white rounded border border-danger border-2 p-3 mx-auto position-relative" style="width: 220px; height: 160px; border-style: dashed !important;">
+                                <div class="bg-danger text-white rounded p-1 position-absolute" style="top: -8px; left: -8px; font-size: 8px; font-weight: bold;">
+                                    OVERFLOWING BORDER
+                                </div>
+                                <div class="text-start text-danger h-100 d-flex flex-column justify-content-between">
+                                    <div class="border-bottom border-danger-subtle pb-1">
+                                        <strong>BRAND LOGO</strong>
+                                    </div>
+                                    <div class="text-muted small" style="font-size: 9px; line-height: 1.2;">
+                                        Text box placed outside safety trim zone. It will get trimmed off by guillotine.
+                                    </div>
+                                    <div class="text-end fw-bold" style="font-size: 14px;">✄ CUT ZONE</div>
+                                </div>
+                            </div>
+                            <p class="text-muted small mt-2 mb-0">Red Dashed border represents mechanical paper trimmer paths.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between text-muted small pt-2 border-top">
+                    <span>PrintFlow presentation deck</span>
+                    <span class="mono">Slide 2 of 8</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 3: Guided Canvas Simulator (Light) -->
+        <div class="slide-card slide-light" id="slide3">
+            <div class="slide-content">
+                <div class="slide-header d-flex justify-content-between align-items-center">
+                    <h2 class="h3 fw-bold text-dark m-0">Guided Canvas: Millimeters & Bleeds</h2>
+                    <span class="badge bg-primary">Interactive Simulator</span>
+                </div>
+                <div class="slide-body">
+                    <div class="slide-left">
+                        <p class="fw-bold fs-6 text-dark mb-2">
+                            Designing in physical dimensions blocks cutting errors.
+                        </p>
+                        <p class="text-muted small mb-3">
+                            Enable the simulator controls below to see how layouts snap to grids and protect trim limits:
+                        </p>
+                        
+                        <!-- Toggle Controls -->
+                        <div class="card bg-light border-0 p-3 rounded-3 mb-3">
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" role="switch" id="bleed3">
+                                <label class="form-check-label fw-bold text-danger small" for="bleed3">
+                                    <i class="fa-solid fa-scissors me-1"></i>3mm Bleed Safety margins
+                                </label>
+                            </div>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" role="switch" id="grid3">
+                                <label class="form-check-label fw-bold text-primary small" for="grid3">
+                                    <i class="fa-solid fa-table-cells me-1"></i>10mm Grid Snapping
+                                </label>
+                            </div>
+                        </div>
+                        <p class="text-muted small mb-0">
+                            <strong>Interactive:</strong> Click any element on the right and use the coordinates panel to move it. Try dragging them past the borders with bleed checks enabled!
+                        </p>
+                    </div>
+                    <div class="slide-right">
+                        <div class="canvas-container">
+                            <div class="sim-canvas" id="canvas3">
+                                <div class="bleed-border" id="bleedBorder3"></div>
+                                <div class="safe-border" id="safeBorder3"></div>
+                                <div class="grid-overlay" id="gridOverlay3"></div>
+                                
+                                <!-- Elements inside simulated canvas -->
+                                <div class="sim-el p-1 selected" id="c3elLogo" style="top: 20px; left: 20px; width: 70px; height: 40px; background: rgba(13, 110, 253, 0.1);">
+                                    <div class="d-flex flex-column justify-content-center align-items-center h-100 text-primary" style="font-size: 8px; font-weight: bold;">
+                                        <i class="fa-solid fa-image mb-1"></i><span>LOGO</span>
+                                    </div>
+                                </div>
+                                <div class="sim-el p-1" id="c3elText" style="top: 20px; left: 100px; width: 150px; height: 50px; background: rgba(13, 110, 253, 0.05);">
+                                    <div class="text-start" style="font-size: 7px; line-height: 1.2;">
+                                        <strong>PrintFlow Company</strong><br>123 Industrial Boulevard
+                                    </div>
+                                </div>
+                                <div class="sim-el p-1" id="c3elBody" style="top: 80px; left: 20px; width: 230px; height: 280px; background: rgba(13, 110, 253, 0.03);">
+                                    <div style="font-size: 8px; line-height: 1.3;">
+                                        <strong>Guided Canvas Demonstration:</strong><br>
+                                        This template represents A4/Letter size layouts mapped to physical units. Snapping to physical grid intervals ensures envelope margins remain accurate.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Mini Inspector controls inside slide -->
+                            <div class="position-absolute bottom-2 start-2 glass-card p-2 text-start" style="width: 140px; z-index: 100;">
+                                <div class="fw-bold text-primary mb-1" style="font-size: 9px;" id="c3ElTag">Logo Box</div>
+                                <div class="row g-1 mb-1" style="font-size: 9px;">
+                                    <div class="col-6 text-muted">X (mm):</div>
+                                    <div class="col-6 text-end mono fw-bold" id="c3PosX">10.00</div>
+                                    <div class="col-6 text-muted">Y (mm):</div>
+                                    <div class="col-6 text-end mono fw-bold" id="c3PosY">10.00</div>
+                                </div>
+                                <div class="d-flex gap-1">
+                                    <button class="btn btn-xs btn-outline-secondary p-1 flex-grow-1" onclick="moveElement3(-10, 0)"><i class="fa-solid fa-arrow-left" style="font-size: 8px;"></i></button>
+                                    <button class="btn btn-xs btn-outline-secondary p-1 flex-grow-1" onclick="moveElement3(0, -10)"><i class="fa-solid fa-arrow-up" style="font-size: 8px;"></i></button>
+                                    <button class="btn btn-xs btn-outline-secondary p-1 flex-grow-1" onclick="moveElement3(0, 10)"><i class="fa-solid fa-arrow-down" style="font-size: 8px;"></i></button>
+                                    <button class="btn btn-xs btn-outline-secondary p-1 flex-grow-1" onclick="moveElement3(10, 0)"><i class="fa-solid fa-arrow-right" style="font-size: 8px;"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between text-muted small pt-2 border-top">
+                    <span id="canvasWarning3" class="text-danger fw-bold"></span>
+                    <span class="mono">Slide 3 of 8</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 4: Compliance Audits (Light) -->
+        <div class="slide-card slide-light" id="slide4">
+            <div class="slide-content">
+                <div class="slide-header d-flex justify-content-between align-items-center">
+                    <h2 class="h3 fw-bold text-dark m-0">Color Compliance & Quality Audits</h2>
+                    <span class="badge bg-primary">Interactive Simulator</span>
+                </div>
+                <div class="slide-body">
+                    <div class="slide-left">
+                        <p class="fw-bold fs-6 text-dark mb-2">
+                            Capture layout defects before printing.
+                        </p>
+                        <p class="text-muted small mb-3">
+                            Colors on computer screens use bright light (RGB) which print inks cannot replicate. PrintFlow automatically scans for non-compliant colors and file qualities:
+                        </p>
+                        
+                        <div class="card bg-light border-0 p-3 rounded-3 mb-3">
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" role="switch" id="gamutScan4">
+                                <label class="form-check-label fw-bold text-warning small" for="gamutScan4">
+                                    <i class="fa-solid fa-palette me-1"></i>Enable Ink-Gamut Scanner
+                                </label>
+                            </div>
+                            <div class="mt-2" id="gamutFixArea" style="display: none;">
+                                <div class="alert alert-warning p-2 mb-1 small" style="font-size: 10px;">
+                                    Out-of-Gamut bright green detected on 'Brand Highlight Line'!
+                                </div>
+                                <button class="btn btn-sm btn-warning w-100 py-1 font-semibold" style="font-size: 11px;" onclick="convertColor4()">
+                                    Convert to Dry-Toner CMYK Green
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="slide-right">
+                        <div class="w-100 h-100 d-flex flex-column gap-2" style="max-height: 420px;">
+                            <!-- Simulated Canvas mini box -->
+                            <div class="bg-light rounded p-2 border flex-grow-1 position-relative d-flex justify-content-center align-items-center">
+                                <div class="sim-canvas border" style="width: 220px; height: 180px;">
+                                    <div class="sim-el" id="c4elLine" style="top: 20px; left: 10px; width: 200px; height: 12px; background-color: #00ff00;"></div>
+                                    <div class="sim-el p-1" style="top: 45px; left: 10px; width: 200px; height: 120px; font-size: 8px;">
+                                        <strong>Pre-flight check page:</strong><br>
+                                        The highlight bar above uses neon web RGB green (#00FF00). If printed, dry toner will shift this to a dull color.
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Console Log -->
+                            <div class="console-log" id="consoleLog4">
+                                <div class="console-line console-info"><span>[INFO]</span> Launching Pre-Flight layout scanner...</div>
+                                <div class="console-line console-success"><span>[PASS]</span> Envelope boundaries verify standard A4 template.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between text-muted small pt-2 border-top">
+                    <span>PrintFlow presentation deck</span>
+                    <span class="mono">Slide 4 of 8</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 5: 3D Stack Inspector (White Theme) -->
+        <div class="slide-card slide-light" id="slide5">
+            <div class="slide-content">
+                <div class="slide-header d-flex justify-content-between align-items-center">
+                    <h2 class="h3 fw-bold text-dark m-0">Visual Layer Stacking Inspector</h2>
+                    <span class="badge bg-primary">Interactive 3D View</span>
+                </div>
+                <div class="slide-body">
+                    <div class="slide-left">
+                        <p class="fw-bold fs-6 text-dark mb-2">
+                            Inspect layout layering in virtual 3D depth.
+                        </p>
+                        <p class="text-muted small mb-3">
+                            To ensure address lines aren't hidden behind backgrounds, PrintFlow isolates layout elements by depth stacking (Z-index). The layers auto-animate to show the structural hierarchy.
+                        </p>
+
+                        <!-- Controls -->
+                        <div class="glass-card p-3 mb-3">
+                            <label for="extrusion5" class="form-label d-flex justify-content-between small fw-bold text-dark">
+                                <span>Layer Extrusion Separation</span>
+                                <span class="mono text-primary" id="extrusionVal5">30mm</span>
+                            </label>
+                            <input type="range" class="form-range" id="extrusion5" min="0" max="60" value="30">
+                            
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-xs btn-outline-primary flex-grow-1 p-1" style="font-size: 10px;" onclick="tilt3d('stack')">3D Stack</button>
+                                <button class="btn btn-xs btn-outline-primary flex-grow-1 p-1" style="font-size: 10px;" onclick="tilt3d('flat')">Flat 2D</button>
+                                <button class="btn btn-xs btn-outline-primary flex-grow-1 p-1" style="font-size: 10px;" onclick="tilt3d('edge')">Edge-On</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="slide-right">
+                        <div class="scene-3d">
+                            <div class="canvas-3d extruded" id="canvas3d5">
+                                <div class="layer-3d layer-paper" style="transform: translateZ(0px);">
+                                    <div class="layer-3d-label">Paper Base Layout</div>
+                                </div>
+                                <div class="layer-3d layer-shapes" style="transform: translateZ(30px);">
+                                    <div class="layer-3d-label">Graphics & Fills</div>
+                                </div>
+                                <div class="layer-3d layer-images" style="transform: translateZ(60px);">
+                                    <div class="layer-3d-label">Uploaded Logo Image</div>
+                                </div>
+                                <div class="layer-3d layer-text" style="transform: translateZ(90px);">
+                                    <div class="layer-3d-label">Text Elements</div>
+                                </div>
+                                <div class="layer-3d layer-barcode" style="transform: translateZ(120px);">
+                                    <div class="layer-3d-label">Serial Barcodes</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between text-muted small pt-2 border-top">
+                    <span>PrintFlow presentation deck</span>
+                    <span class="mono">Slide 5 of 8</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 6: Brand Kits & WATERMARK (Light) -->
+        <div class="slide-card slide-light" id="slide6">
+            <div class="slide-content">
+                <div class="slide-header d-flex justify-content-between align-items-center">
+                    <h2 class="h3 fw-bold text-dark m-0">Brand Kits & Release Approvals</h2>
+                    <span class="badge bg-primary">Interactive Simulator</span>
+                </div>
+                <div class="slide-body">
+                    <div class="slide-left">
+                        <p class="fw-bold fs-6 text-dark mb-2">
+                            Lock template layouts and track release states.
+                        </p>
+                        <p class="text-muted small mb-3">
+                            Autofill details securely from local sandbox databases. Enable approvals to remove "DRAFT" watermarks and lock element coordinates:
+                        </p>
+                        
+                        <!-- Inputs -->
+                        <div class="card bg-light border-0 p-3 rounded-3 mb-2" style="font-size: 11px;">
+                            <div class="mb-2">
+                                <label class="fw-bold mb-1">Company Name</label>
+                                <input type="text" class="form-control form-control-sm py-0" id="brandName6" value="PrintFlow Corp" oninput="changeBrand6()">
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-outline-success flex-grow-1 py-1 font-semibold" style="font-size: 10px;" id="btnApprove6" onclick="toggleApprove6()">
+                                    Approve Release
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger flex-grow-1 py-1 font-semibold" style="font-size: 10px;" id="btnLock6" onclick="toggleLock6()">
+                                    Lock Elements
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="slide-right">
+                        <div class="canvas-container">
+                            <div class="sim-canvas" id="canvas6">
+                                <div class="draft-watermark" id="watermark6">DRAFT</div>
+                                
+                                <div class="sim-el p-1" id="c6elLogo" style="top: 20px; left: 20px; width: 60px; height: 35px; background: rgba(13, 110, 253, 0.1);">
+                                    <div class="lock-badge" id="c6lockLogo">🔒</div>
+                                    <div class="text-center text-primary fw-bold" style="font-size: 7px; line-height: 35px;">LOGO</div>
+                                </div>
+                                <div class="sim-el p-1" style="top: 20px; left: 90px; width: 160px; height: 35px; background: rgba(13, 110, 253, 0.05);">
+                                    <div class="lock-badge" id="c6lockText">🔒</div>
+                                    <div class="text-start" style="font-size: 8px; line-height: 1.2;">
+                                        <strong id="c6TextName">PrintFlow Corp</strong><br>123 Press Lane
+                                    </div>
+                                </div>
+                                <div class="sim-el p-2" style="top: 70px; left: 20px; width: 230px; height: 290px; background: rgba(13, 110, 253, 0.03);">
+                                    <div style="font-size: 8px; line-height: 1.3;">
+                                        Dear Valued Client,<br><br>
+                                        Template elements can be locked to standard grids. When elements are locked (represented by a red lock icon), coordinates cannot be changed, ensuring brand consistency.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between text-muted small pt-2 border-top">
+                    <span id="c6AlertLabel" class="text-success fw-bold"></span>
+                    <span class="mono">Slide 6 of 8</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 7: Comparison Table (Light) -->
+        <div class="slide-card slide-light" id="slide7">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <h2 class="h3 fw-bold text-dark m-0">Comparison: How PrintFlow Differs</h2>
+                </div>
+                <div class="slide-body d-block overflow-auto">
+                    <p class="text-muted small mb-3">
+                        Standard graphics editors focus on digital screens. PrintFlow is engineered specifically for mechanical print shop outputs.
+                    </p>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" style="font-size: 13px;">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Layout Requirement</th>
+                                    <th>Standard Design Tools (Figma, Canva)</th>
+                                    <th class="text-primary fw-bold">PrintFlow Engine</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="fw-bold">Layout Grid Alignment</td>
+                                    <td>Screen Pixels (px) — causes alignment approximations on paper</td>
+                                    <td class="text-primary fw-bold"><i class="fa-solid fa-circle-check me-1"></i>Physical Millimeters (mm)</td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-bold">Guillotine Safety Margins</td>
+                                    <td>Manual border guide lines — easily ignored or clipped</td>
+                                    <td class="text-primary fw-bold"><i class="fa-solid fa-circle-check me-1"></i>Automatic 3mm Bleed warnings</td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-bold">Ink Color Compliance</td>
+                                    <td>Allows neon RGB colors — prints muddy or dull</td>
+                                    <td class="text-primary fw-bold"><i class="fa-solid fa-circle-check me-1"></i>Gamut check and CMYK conversion</td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-bold">Image Resolution (DPI)</td>
+                                    <td>Does not audit input density (fuzzy prints)</td>
+                                    <td class="text-primary fw-bold"><i class="fa-solid fa-circle-check me-1"></i>Resolution warnings for low DPI assets</td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-bold">Privacy & Database Security</td>
+                                    <td>Cloud stored — upload private account letters</td>
+                                    <td class="text-primary fw-bold"><i class="fa-solid fa-circle-check me-1"></i>Local Sandbox (IndexedDB) database</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between text-muted small pt-2 border-top">
+                    <span>PrintFlow presentation deck</span>
+                    <span class="mono">Slide 7 of 8</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 8: Summary (White Theme) -->
+        <div class="slide-card slide-light" id="slide8">
+            <div class="slide-content">
+                <div class="slide-header">
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill small">
+                        Conclusion
+                    </span>
+                </div>
+                <div class="slide-body">
+                    <div class="slide-left d-flex flex-column justify-content-center">
+                        <h2 class="display-6 fw-bold text-dark mb-3">Ready for the Press Room</h2>
+                        <h4 class="h5 text-primary mb-4">Eliminate layout waste. Print with complete confidence.</h4>
+                        
+                        <ul class="d-flex flex-column gap-3 text-muted" style="list-style: none; padding-left: 0; font-size: 14px;">
+                            <li>
+                                <i class="fa-solid fa-circle-check text-primary me-2"></i>
+                                <strong>Zero Paper Waste:</strong> Pre-flight quality checking saves expensive printing runs from being thrown away due to trim or color drift errors.
+                            </li>
+                            <li>
+                                <i class="fa-solid fa-circle-check text-primary me-2"></i>
+                                <strong>Secure Templates:</strong> Manage document locking rules and default letterhead information securely inside the local browser sandbox.
+                            </li>
+                            <li>
+                                <i class="fa-solid fa-circle-check text-primary me-2"></i>
+                                <strong>Vector Precision:</strong> Download press-ready vector SVGs and scaled PDFs dynamically.
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="slide-right flex-column gap-3">
+                        <div class="glass-card text-center border-primary p-4 w-100 max-w-sm">
+                            <h5 class="fw-bold text-dark mb-3">Try PrintFlow Free</h5>
+                            <p class="text-muted small mb-0">
+                                Experience client-side web-to-press precision design templates.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between text-muted small pt-2 border-top">
+                    <span>End of presentation deck</span>
+                    <span class="mono">Slide 8 of 8</span>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Navigation Control HUD -->
+    <footer class="controls-hud position-relative">
+        <div class="progress-bar-container">
+            <div class="progress-bar-fill" id="progressFill"></div>
+        </div>
+        <div class="container d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-3">
+                <button class="btn btn-outline-primary rounded-pill px-3 py-2 btn-sm" onclick="prevSlide()">
+                    <i class="fa-solid fa-chevron-left me-1"></i> Previous
+                </button>
+                <button class="btn btn-outline-primary rounded-pill px-3 py-2 btn-sm" onclick="nextSlide()">
+                    Next <i class="fa-solid fa-chevron-right ms-1"></i>
+                </button>
+                <span class="text-muted small d-none d-md-inline-block">
+                    Use arrow keys <kbd class="bg-light text-dark border">◄</kbd> <kbd class="bg-light text-dark border">►</kbd> to navigate
+                </span>
+            </div>
+            
+            <div class="mono fw-bold" id="slideIndicator">
+                Slide 1 of 8
+            </div>
+            
+            <div>
+                <button class="btn btn-outline-secondary rounded-pill px-3 py-2 btn-sm" id="btnFullscreen" onclick="toggleFullscreen()">
+                    <i class="fa-solid fa-expand me-1"></i> Full Screen
+                </button>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Bootstrap 5 JavaScript Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Presentation and Simulator Logic -->
+    <script>
+        // Slide Navigation Logic
+        let currentSlide = 1;
+        const totalSlides = 8;
+
+        function showSlide(index) {
+            if (index < 1 || index > totalSlides) return;
+            
+            // Hide all slides
+            document.querySelectorAll('.slide-card').forEach(slide => {
+                slide.classList.remove('active');
+            });
+
+            // Show active slide
+            const activeSlide = document.getElementById(`slide${index}`);
+            activeSlide.classList.add('active');
+
+            // Update state
+            currentSlide = index;
+            document.getElementById('slideIndicator').textContent = `Slide ${currentSlide} of ${totalSlides}`;
+            
+            // Update progress bar
+            const pct = (currentSlide / totalSlides) * 100;
+            document.getElementById('progressFill').style.width = `${pct}%`;
+
+            // Trigger custom animations or layout updates if needed
+            if (index === 5) {
+                update3dTransform5();
+            }
+        }
+
+        function nextSlide() {
+            if (currentSlide < totalSlides) {
+                showSlide(currentSlide + 1);
+            }
+        }
+
+        function prevSlide() {
+            if (currentSlide > 1) {
+                showSlide(currentSlide - 1);
+            }
+        }
+
+        // Keyboard Navigation Listener
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
+                nextSlide();
+                if (e.key === ' ') e.preventDefault(); // prevent scroll
+            } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+                prevSlide();
+            }
+        });
+
+        // Full Screen Toggle & State Listener
+        document.addEventListener('fullscreenchange', () => {
+            const btnFooter = document.getElementById('btnFullscreen');
+            const btnHeader = document.getElementById('btnFullscreenHeader');
+
+            if (document.fullscreenElement) {
+                if (btnFooter) btnFooter.style.display = 'none'; // Hide bottom exit button in full-screen
+                if (btnHeader) btnHeader.innerHTML = `<i class="fa-solid fa-compress me-1"></i> Exit Slide Deck`;
+            } else {
+                if (btnFooter) {
+                    btnFooter.style.display = 'inline-block'; // Restore bottom button when not in full-screen
+                    btnFooter.innerHTML = `<i class="fa-solid fa-expand me-1"></i> Full Screen`;
+                }
+                if (btnHeader) btnHeader.innerHTML = `<i class="fa-solid fa-expand me-1"></i> Slide Deck Mode`;
+            }
+        });
+
+        function toggleFullscreen() {
+            const viewport = document.documentElement;
+            if (!document.fullscreenElement) {
+                viewport.requestFullscreen().catch(err => {
+                    console.log("Error enabling full screen:", err);
+                });
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+
+        // ============================================================
+        // SLIDE 3 INTERACTIVE LOGIC (2D Canvas Guides & Snapping)
+        // ============================================================
+        let s3SelectedId = 'c3elLogo';
+        let s3BleedActive = false;
+        let s3GridActive = false;
+
+        const s3Elements = {
+            'c3elLogo': { name: 'Logo Box', x: 20, y: 20, w: 70, h: 40 },
+            'c3elText': { name: 'Address Header', x: 100, y: 20, w: 150, h: 50 },
+            'c3elBody': { name: 'Letter Body Text', x: 20, y: 80, w: 230, h: 280 }
+        };
+
+        // Select element click handler
+        document.querySelectorAll('#canvas3 .sim-el').forEach(el => {
+            el.addEventListener('click', (e) => {
+                document.querySelectorAll('#canvas3 .sim-el').forEach(item => item.classList.remove('selected'));
+                el.classList.add('selected');
+                s3SelectedId = el.id;
+                updateInspectorDetails3();
+            });
+        });
+
+        function updateInspectorDetails3() {
+            const info = s3Elements[s3SelectedId];
+            if (info) {
+                document.getElementById('c3ElTag').textContent = info.name;
+                document.getElementById('c3PosX').textContent = (info.x / 2).toFixed(2);
+                document.getElementById('c3PosY').textContent = (info.y / 2).toFixed(2);
+            }
+        }
+
+        function moveElement3(dx, dy) {
+            const info = s3Elements[s3SelectedId];
+            if (info) {
+                let newX = info.x + dx;
+                let newY = info.y + dy;
+
+                if (s3GridActive) {
+                    newX = Math.round(newX / 20) * 20;
+                    newY = Math.round(newY / 20) * 20;
+                }
+
+                // Keep inside limits
+                if (newX >= 0 && newX + info.w <= 270) info.x = newX;
+                if (newY >= 0 && newY + info.h <= 380) info.y = newY;
+
+                const domEl = document.getElementById(s3SelectedId);
+                domEl.style.left = info.x + 'px';
+                domEl.style.top = info.y + 'px';
+
+                updateInspectorDetails3();
+                checkBleed3(s3SelectedId, info);
+            }
+        }
+
+        function checkBleed3(id, info) {
+            const domEl = document.getElementById(id);
+            const margin = 8;
+            const hasConflict = (info.x < margin || info.y < margin || (info.x + info.w) > (270 - margin) || (info.y + info.h) > (380 - margin));
+
+            if (s3BleedActive && hasConflict) {
+                domEl.classList.add('error-bleed');
+                document.getElementById('canvasWarning3').textContent = `⚠️ Trim Warning: ${info.name} touches trim line!`;
+            } else {
+                domEl.classList.remove('error-bleed');
+                // Check if any other is in error
+                let anyError = false;
+                for (let k in s3Elements) {
+                    const elInfo = s3Elements[k];
+                    const conflict = (elInfo.x < margin || elInfo.y < margin || (elInfo.x + elInfo.w) > (270 - margin) || (elInfo.y + elInfo.h) > (380 - margin));
+                    if (s3BleedActive && conflict) anyError = true;
+                }
+                if (!anyError) document.getElementById('canvasWarning3').textContent = '';
+            }
+        }
+
+        // Toggles
+        document.getElementById('bleed3').addEventListener('change', (e) => {
+            s3BleedActive = e.target.checked;
+            document.getElementById('bleedBorder3').style.display = s3BleedActive ? 'block' : 'none';
+            document.getElementById('safeBorder3').style.display = s3BleedActive ? 'block' : 'none';
+            for (let k in s3Elements) checkBleed3(k, s3Elements[k]);
+        });
+
+        document.getElementById('grid3').addEventListener('change', (e) => {
+            s3GridActive = e.target.checked;
+            document.getElementById('gridOverlay3').style.display = s3GridActive ? 'block' : 'none';
+        });
+
+        // ============================================================
+        // SLIDE 4 INTERACTIVE LOGIC (Color Compliance Audit)
+        // ============================================================
+        let s4GamutActive = false;
+
+        document.getElementById('gamutScan4').addEventListener('change', (e) => {
+            s4GamutActive = e.target.checked;
+            const logEl = document.getElementById('consoleLog4');
+            const fixArea = document.getElementById('gamutFixArea');
+
+            if (s4GamutActive) {
+                logConsole4('info', 'Gamut verification scan: analyzing design color codes...');
+                const line = document.getElementById('c4elLine');
+                if (line.style.backgroundColor === 'rgb(0, 255, 0)' || line.style.backgroundColor === '#00ff00') {
+                    logConsole4('warning', '[WARN] Bright RGB color (#00FF00) on Highlight Bar is out-of-gamut. Ink dilution will occur.');
+                    fixArea.style.display = 'block';
+                }
+            } else {
+                logConsole4('info', 'Gamut scanner disabled.');
+                fixArea.style.display = 'none';
+            }
+        });
+
+        function convertColor4() {
+            document.getElementById('c4elLine').style.backgroundColor = '#198754';
+            logConsole4('success', '[FIX] Converted Neon RGB Green to Dry-Toner CMYK Green (#198754).');
+            document.getElementById('gamutFixArea').style.display = 'none';
+        }
+
+        function logConsole4(type, msg) {
+            const logEl = document.getElementById('consoleLog4');
+            const line = document.createElement('div');
+            line.className = `console-line console-${type}`;
+            
+            let label = '[INFO]';
+            if (type === 'success') label = '[PASS]';
+            if (type === 'warning') label = '[WARN]';
+            
+            line.innerHTML = `<span>${label}</span> ${msg}`;
+            logEl.appendChild(line);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        // ============================================================
+        // SLIDE 5 INTERACTIVE LOGIC (3D Stacking Layer Inspector)
+        // ============================================================
+        const canvas3d5 = document.getElementById('canvas3d5');
+        const extrusion5 = document.getElementById('extrusion5');
+        const extrusionVal5 = document.getElementById('extrusionVal5');
+        let currentTiltMode = 'stack';
+
+        function update3dTransform5() {
+            const ext = extrusion5.value;
+            extrusionVal5.textContent = ext + 'mm';
+
+            let rotX = 55;
+            let rotZ = -35;
+            
+            if (currentTiltMode === 'flat') {
+                rotX = 0;
+                rotZ = 0;
+            } else if (currentTiltMode === 'edge') {
+                rotX = 90;
+                rotZ = -90;
+            }
+
+            canvas3d5.style.transform = `rotateX(${rotX}deg) rotateY(0deg) rotateZ(${rotZ}deg)`;
+
+            const layers = canvas3d5.querySelectorAll('.layer-3d');
+            layers[0].style.transform = `translateZ(0px)`;
+            layers[1].style.transform = `translateZ(${1 * ext}px)`;
+            layers[2].style.transform = `translateZ(${2 * ext}px)`;
+            layers[3].style.transform = `translateZ(${3 * ext}px)`;
+            layers[4].style.transform = `translateZ(${4 * ext}px)`;
+
+            if (ext > 0 && currentTiltMode !== 'flat') {
+                canvas3d5.classList.add('extruded');
+            } else {
+                canvas3d5.classList.remove('extruded');
+            }
+        }
+
+        extrusion5.addEventListener('input', update3dTransform5);
+
+        // Slide 5 Auto-Animation Loop
+        let s5AnimDirection = 1;
+        let s5AnimVal = 30;
+        let isUserInteractingWithS5 = false;
+        let s5InteractionTimeout = null;
+
+        function run3dAnimation() {
+            if (currentSlide === 5 && !isUserInteractingWithS5 && currentTiltMode === 'stack') {
+                s5AnimVal += s5AnimDirection * 0.4;
+                if (s5AnimVal >= 55) {
+                    s5AnimVal = 55;
+                    s5AnimDirection = -1;
+                } else if (s5AnimVal <= 10) {
+                    s5AnimVal = 10;
+                    s5AnimDirection = 1;
+                }
+                extrusion5.value = Math.round(s5AnimVal);
+                update3dTransform5();
+            }
+            requestAnimationFrame(run3dAnimation);
+        }
+
+        // Initialize the auto-animation loop
+        requestAnimationFrame(run3dAnimation);
+
+        // Pause auto-animation when user interacts with range slider
+        extrusion5.addEventListener('input', () => {
+            isUserInteractingWithS5 = true;
+            clearTimeout(s5InteractionTimeout);
+            s5InteractionTimeout = setTimeout(() => {
+                isUserInteractingWithS5 = false;
+                s5AnimVal = parseFloat(extrusion5.value);
+            }, 4000); // Resume after 4 seconds of inactivity
+        });
+
+        function tilt3d(mode) {
+            currentTiltMode = mode;
+            if (mode === 'stack') {
+                extrusion5.value = 30;
+            } else if (mode === 'flat') {
+                extrusion5.value = 0;
+            } else if (mode === 'edge') {
+                extrusion5.value = 45;
+            }
+            update3dTransform5();
+        }
+
+        // ============================================================
+        // SLIDE 6 INTERACTIVE LOGIC (Brand Kit Form & Watermark)
+        // ============================================================
+        let s6Locked = false;
+        let s6Approved = false;
+
+        function changeBrand6() {
+            const val = document.getElementById('brandName6').value || 'PrintFlow Corp';
+            document.getElementById('c6TextName').textContent = val;
+        }
+
+        function toggleLock6() {
+            s6Locked = !s6Locked;
+            const btn = document.getElementById('btnLock6');
+            const badges = document.querySelectorAll('#canvas6 .lock-badge');
+
+            if (s6Locked) {
+                btn.className = 'btn btn-sm btn-danger flex-grow-1 py-1 font-semibold';
+                btn.innerHTML = 'Unlock Elements';
+                badges.forEach(b => b.style.display = 'flex');
+                document.getElementById('c6AlertLabel').textContent = '🔒 Layout elements locked to grid';
+                document.getElementById('c6AlertLabel').className = 'text-danger fw-bold';
+            } else {
+                btn.className = 'btn btn-sm btn-outline-danger flex-grow-1 py-1 font-semibold';
+                btn.innerHTML = 'Lock Elements';
+                badges.forEach(b => b.style.display = 'none');
+                document.getElementById('c6AlertLabel').textContent = 'Elements unlocked for editing';
+                document.getElementById('c6AlertLabel').className = 'text-muted';
+            }
+        }
+
+        function toggleApprove6() {
+            s6Approved = !s6Approved;
+            const btn = document.getElementById('btnApprove6');
+            const watermark = document.getElementById('watermark6');
+
+            if (s6Approved) {
+                btn.className = 'btn btn-sm btn-success flex-grow-1 py-1 font-semibold';
+                btn.innerHTML = 'Revert to Draft';
+                watermark.style.display = 'none';
+                document.getElementById('c6AlertLabel').textContent = '✓ Document Approved for Print Release';
+                document.getElementById('c6AlertLabel').className = 'text-success fw-bold';
+            } else {
+                btn.className = 'btn btn-sm btn-outline-success flex-grow-1 py-1 font-semibold';
+                btn.innerHTML = 'Approve Release';
+                watermark.style.display = 'block';
+                document.getElementById('c6AlertLabel').textContent = 'Document in Draft state';
+                document.getElementById('c6AlertLabel').className = 'text-secondary';
+            }
+        }
+    </script>
+</body>
+</html>
